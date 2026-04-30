@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Sidebar from '../components/Sidebar';
 import { useAudit } from '../context/AuditContext';
@@ -474,7 +474,7 @@ export default function Home() {
           onContinue={(audit) => { setShowBiomedModal(false); navigate(`/audit/${audit.id}`); }}
           onStartNew={() => { setShowBiomedModal(false); navigate('/audit/new'); }}
           onUpload={() => { setShowBiomedModal(false); setShowUploadModal(true); }}
-          onPrintBlank={() => { setShowBiomedModal(false); navigate('/print/blank'); }}
+          onPrintBlank={() => { setShowBiomedModal(false); navigate('/audit/blank/print'); }}
           onPaperOcr={() => { setShowBiomedModal(false); navigate('/audit/new', { state: { openOcr: true } }); }}
           onDownloadTemplate={downloadBiomedTemplate}
         />
@@ -488,35 +488,54 @@ export default function Home() {
 }
 
 function BiomedForkModal({ audits, onClose, onContinue, onStartNew, onUpload, onPrintBlank, onPaperOcr, onDownloadTemplate }) {
+  const [files, setFiles] = useState([]);
+  const [isDragging, setIsDragging] = useState(false);
+  const fileRef = useRef();
   const hasDrafts = audits.length > 0;
+
+  function addFiles(incoming) {
+    setFiles(prev => {
+      const existing = new Set(prev.map(f => f.name + f.size));
+      return [...prev, ...Array.from(incoming).filter(f => !existing.has(f.name + f.size))];
+    });
+  }
+
+  function removeFile(idx) {
+    setFiles(prev => prev.filter((_, i) => i !== idx));
+  }
+
+  function handleUpload() {
+    if (!files.length) return;
+    const hasExcel = files.some(f => /\.(xlsx?)$/i.test(f.name));
+    const hasImages = files.some(f => f.type.startsWith('image/') || /\.pdf$/i.test(f.name));
+    if (hasExcel && !hasImages) { onUpload(); }
+    else { onPaperOcr(); }
+  }
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl w-full max-w-lg overflow-hidden shadow-xl">
+      <div className="bg-white rounded-2xl w-full max-w-xl overflow-hidden shadow-xl">
         <div className="bg-green-dark px-5 py-4">
           <div className="text-white font-medium text-base">BioMed Audit</div>
           <div className="text-white/60 text-xs mt-0.5">Rendevor Dialysis — Annual Technical Audit</div>
         </div>
 
-        <div className="p-5">
+        <div className="p-5 space-y-5">
+          {/* In-progress drafts */}
           {hasDrafts && (
-            <>
-              <div className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-3">
-                In progress ({audits.length})
-              </div>
+            <div>
+              <div className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-2">Resume in-progress ({audits.length})</div>
               {audits.map(audit => {
                 const pct = Math.round((audit.sectionsComplete / audit.totalSections) * 100);
                 return (
                   <div key={audit.id} className="border border-gray-200 rounded-xl p-3 mb-2 flex items-center gap-3 hover:border-green-mid cursor-pointer transition-colors" onClick={() => onContinue(audit)}>
-                    <div className="w-9 h-9 rounded-lg bg-green-100 flex items-center justify-center flex-shrink-0">
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#27500a" strokeWidth="1.5"><path d="M9 12h6M9 16h4M6 3h12a2 2 0 012 2v14a2 2 0 01-2 2H6a2 2 0 01-2-2V5a2 2 0 012-2z"/></svg>
+                    <div className="w-8 h-8 rounded-lg bg-green-100 flex items-center justify-center flex-shrink-0">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#27500a" strokeWidth="1.5"><path d="M9 12h6M9 16h4M6 3h12a2 2 0 012 2v14a2 2 0 01-2 2H6a2 2 0 01-2-2V5a2 2 0 012-2z"/></svg>
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="text-sm font-medium text-gray-900 truncate">{audit.name}</div>
-                      <div className="text-xs text-gray-500 mt-0.5">Last updated {audit.updatedAt} · {audit.sectionsComplete} of {audit.totalSections} sections complete</div>
-                      <div className="h-1 bg-gray-100 rounded-full mt-1.5">
-                        <div className="h-1 bg-green-mid rounded-full" style={{ width: `${pct}%` }} />
-                      </div>
+                      <div className="text-xs text-gray-400 mt-0.5">{audit.sectionsComplete} of {audit.totalSections} sections · updated {audit.updatedAt}</div>
+                      <div className="h-1 bg-gray-100 rounded-full mt-1.5"><div className="h-1 bg-green-mid rounded-full" style={{ width: `${pct}%` }} /></div>
                     </div>
                     <span className="text-xs font-medium text-amber-800 bg-amber-50 px-2 py-0.5 rounded-full flex items-center gap-1 flex-shrink-0">
                       <InProgressIcon /> In progress
@@ -524,55 +543,81 @@ function BiomedForkModal({ audits, onClose, onContinue, onStartNew, onUpload, on
                   </div>
                 );
               })}
-              <div className="flex items-center gap-3 my-4">
-                <div className="flex-1 h-px bg-gray-100" />
-                <span className="text-xs text-gray-400">or start fresh</span>
-                <div className="flex-1 h-px bg-gray-100" />
-              </div>
-            </>
+            </div>
           )}
 
-          {!hasDrafts && (
-            <div className="text-sm text-gray-500 mb-4">How would you like to conduct this audit?</div>
-          )}
+          {/* Start a new audit — 3 tiles */}
+          <div>
+            <div className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-2">Start a new audit</div>
+            <div className="grid grid-cols-3 gap-2">
+              <button onClick={onStartNew} className="border border-gray-200 rounded-xl p-3.5 text-left hover:border-green-mid hover:bg-green-50/40 transition-colors">
+                <div className="w-7 h-7 rounded-lg bg-green-100 flex items-center justify-center mb-2.5">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#27500a" strokeWidth="1.5"><path d="M9 12h6M9 16h4M6 3h12a2 2 0 012 2v14a2 2 0 01-2 2H6a2 2 0 01-2-2V5a2 2 0 012-2z"/><line x1="12" y1="7" x2="12" y2="3"/><line x1="9" y1="7" x2="15" y2="7"/></svg>
+                </div>
+                <div className="text-sm font-medium text-gray-900 mb-0.5">Digital Audit</div>
+                <div className="text-xs text-gray-400 leading-relaxed">Complete section by section in-browser.</div>
+              </button>
+              <button onClick={onDownloadTemplate} className="border border-gray-200 rounded-xl p-3.5 text-left hover:border-blue-400 hover:bg-blue-50/40 transition-colors">
+                <div className="w-7 h-7 rounded-lg bg-blue-50 flex items-center justify-center mb-2.5">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#0c447c" strokeWidth="1.5"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><polyline points="9 15 12 18 15 15"/></svg>
+                </div>
+                <div className="text-sm font-medium text-gray-900 mb-0.5">Excel Audit</div>
+                <div className="text-xs text-gray-400 leading-relaxed">Download template and fill out offline.</div>
+              </button>
+              <button onClick={onPrintBlank} className="border border-gray-200 rounded-xl p-3.5 text-left hover:border-amber-400 hover:bg-amber-50/40 transition-colors">
+                <div className="w-7 h-7 rounded-lg bg-amber-50 flex items-center justify-center mb-2.5">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#92400e" strokeWidth="1.5"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+                </div>
+                <div className="text-sm font-medium text-gray-900 mb-0.5">Paper Audit</div>
+                <div className="text-xs text-gray-400 leading-relaxed">Print blank form and fill out on-site.</div>
+              </button>
+            </div>
+          </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <button onClick={onStartNew} className="border border-gray-200 rounded-xl p-4 text-left hover:border-green-mid hover:bg-gray-50 transition-colors">
-              <div className="w-8 h-8 rounded-lg bg-green-100 flex items-center justify-center mb-3">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#27500a" strokeWidth="1.5"><path d="M9 12h6M9 16h4M6 3h12a2 2 0 012 2v14a2 2 0 01-2 2H6a2 2 0 01-2-2V5a2 2 0 012-2z"/><line x1="12" y1="7" x2="12" y2="3"/><line x1="9" y1="7" x2="15" y2="7"/></svg>
-              </div>
-              <div className="text-sm font-medium text-gray-900 mb-1">Start new audit</div>
-              <div className="text-xs text-gray-500 leading-relaxed">Complete the BioMed audit digitally, section by section. Save and return at any time.</div>
-            </button>
-            <button onClick={onUpload} className="border border-gray-200 rounded-xl p-4 text-left hover:border-blue-400 hover:bg-gray-50 transition-colors">
-              <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center mb-3">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#0c447c" strokeWidth="1.5"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-              </div>
-              <div className="text-sm font-medium text-gray-900 mb-1">Upload completed audit</div>
-              <div className="text-xs text-gray-500 leading-relaxed">Already filled out the Excel form? Upload it and we'll generate PoC items automatically.</div>
-            </button>
-            <button onClick={onPrintBlank} className="border border-gray-200 rounded-xl p-4 text-left hover:border-amber-400 hover:bg-gray-50 transition-colors">
-              <div className="w-8 h-8 rounded-lg bg-amber-50 flex items-center justify-center mb-3">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#92400e" strokeWidth="1.5"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
-              </div>
-              <div className="text-sm font-medium text-gray-900 mb-1">Print blank form</div>
-              <div className="text-xs text-gray-500 leading-relaxed">Print the audit to fill out by hand on-site. Upload the completed form to ingest answers.</div>
-            </button>
-            <button onClick={onPaperOcr} className="border border-gray-200 rounded-xl p-4 text-left hover:border-purple-400 hover:bg-gray-50 transition-colors">
-              <div className="w-8 h-8 rounded-lg bg-purple-50 flex items-center justify-center mb-3">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6b21a8" strokeWidth="1.5"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg>
-              </div>
-              <div className="text-sm font-medium text-gray-900 mb-1">Upload paper audit</div>
-              <div className="text-xs text-gray-500 leading-relaxed">Photo or scan a completed paper form and we'll read the answers automatically via OCR.</div>
-            </button>
+          {/* Upload a completed audit */}
+          <div>
+            <div className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-2">Upload a completed audit</div>
+            <div
+              className={`border-2 border-dashed rounded-xl p-4 transition-colors ${isDragging ? 'border-green-mid bg-green-50' : 'border-gray-200 hover:border-gray-300'}`}
+              onDragOver={e => { e.preventDefault(); setIsDragging(true); }}
+              onDragLeave={() => setIsDragging(false)}
+              onDrop={e => { e.preventDefault(); setIsDragging(false); addFiles(e.dataTransfer.files); }}
+            >
+              {files.length === 0 ? (
+                <div className="text-center py-2">
+                  <svg className="mx-auto mb-2 text-gray-300" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                  <div className="text-xs text-gray-500">Drop files here or <button className="text-green-mid underline" onClick={() => fileRef.current.click()}>browse</button></div>
+                  <div className="text-xs text-gray-400 mt-0.5">Excel, JPG, PNG, PDF · Multiple files supported</div>
+                </div>
+              ) : (
+                <div className="space-y-1.5">
+                  {files.map((f, i) => (
+                    <div key={i} className="flex items-center gap-2 bg-white border border-gray-100 rounded-lg px-3 py-1.5">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#6b7280" strokeWidth="2" className="flex-shrink-0">
+                        {/\.(xlsx?)$/i.test(f.name)
+                          ? <><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></>
+                          : <><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></>}
+                      </svg>
+                      <span className="text-xs text-gray-700 flex-1 truncate">{f.name}</span>
+                      <button onClick={() => removeFile(i)} className="text-gray-300 hover:text-red-400 transition-colors flex-shrink-0">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                      </button>
+                    </div>
+                  ))}
+                  <button className="text-xs text-green-mid hover:underline mt-1" onClick={() => fileRef.current.click()}>+ Add more files</button>
+                </div>
+              )}
+              <input ref={fileRef} type="file" multiple accept=".xlsx,.xls,image/*,.pdf" className="hidden" onChange={e => addFiles(e.target.files)} />
+            </div>
+            {files.length > 0 && (
+              <button onClick={handleUpload} className="mt-2 w-full py-2 bg-green-mid text-white rounded-xl text-sm font-medium hover:bg-green-700 transition-colors">
+                Upload {files.length} file{files.length !== 1 ? 's' : ''}
+              </button>
+            )}
           </div>
         </div>
 
-        <div className="px-5 py-3 border-t border-gray-100 flex justify-between items-center">
-          <button onClick={onDownloadTemplate} className="text-xs text-gray-400 flex items-center gap-1.5 hover:text-gray-600">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-            Download blank Excel template
-          </button>
+        <div className="px-5 py-3 border-t border-gray-100 flex justify-end">
           <button onClick={onClose} className="px-3 py-1.5 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50">Cancel</button>
         </div>
       </div>

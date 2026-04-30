@@ -16,7 +16,6 @@ export default function App() {
           <Route path="/audit/:id" element={<AuditForm />} />
           <Route path="/audit/:id/poc" element={<PocFlow />} />
           <Route path="/audit/:id/print" element={<PrintAudit />} />
-          <Route path="/print/blank" element={<PrintAudit />} />
         </Routes>
       </BrowserRouter>
     </AuditProvider>

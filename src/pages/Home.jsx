@@ -279,6 +279,60 @@ async function downloadBiomedTemplate() {
   URL.revokeObjectURL(url);
 }
 
+async function downloadCustomTemplate(template) {
+  const { default: ExcelJS } = await import('exceljs');
+  const wb = new ExcelJS.Workbook();
+
+  for (const section of template.sections) {
+    const ws = wb.addWorksheet(section.name.slice(0, 31));
+    let rowIdx = 1;
+
+    ws.getRow(rowIdx).values = [section.name];
+    ws.getRow(rowIdx).font = { bold: true, size: 13 };
+    rowIdx += 2;
+
+    for (const group of section.groups) {
+      ws.getRow(rowIdx).values = [group.name];
+      ws.getRow(rowIdx).font = { bold: true };
+      rowIdx++;
+
+      for (const q of group.questions) {
+        if (q.type === 'yn') {
+          ws.getRow(rowIdx).values = [q.text, 'Yes / No / N/A', ''];
+          rowIdx++;
+        } else if (q.type === 'text' || q.type === 'number') {
+          ws.getRow(rowIdx).values = [q.text, ''];
+          rowIdx++;
+        } else if (q.type === 'item-table') {
+          ws.getRow(rowIdx).values = [q.text];
+          ws.getRow(rowIdx).font = { italic: true };
+          rowIdx++;
+          if (q.columns?.length) {
+            ws.getRow(rowIdx).values = q.columns.map(c => c.name);
+            ws.getRow(rowIdx).font = { bold: true };
+            rowIdx++;
+            for (let i = 0; i < 5; i++) rowIdx++;
+          }
+        }
+      }
+      rowIdx++;
+    }
+
+    ws.getColumn(1).width = 55;
+    ws.getColumn(2).width = 20;
+    ws.getColumn(3).width = 25;
+  }
+
+  const buf = await wb.xlsx.writeBuffer();
+  const blob2 = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  const url2 = URL.createObjectURL(blob2);
+  const a2 = document.createElement('a');
+  a2.href = url2;
+  a2.download = `${template.name.replace(/[^\w\s-]/g, '').trim().replace(/\s+/g, '_')}_Template.xlsx`;
+  a2.click();
+  URL.revokeObjectURL(url2);
+}
+
 function StatusDot({ status }) {
   const colors = {
     'not-started': 'bg-red-500',
@@ -484,6 +538,7 @@ export default function Home() {
   const [tab, setTab] = useState('my');
   const [showBiomedModal, setShowBiomedModal] = useState(false);
   const [showUploadModal, setShowUploadModal] = useState(false);
+  const [customTemplateModal, setCustomTemplateModal] = useState(null);
 
   function handleOpenAudit(audit) {
     navigate(`/audit/${audit.id}`);
@@ -544,6 +599,16 @@ export default function Home() {
                   <button className="px-4 py-2 border border-gray-200 text-sm rounded-lg text-gray-600 hover:bg-white font-medium">
                     Upload Custom Audit
                   </button>
+                  {auditTemplates.map(tpl => (
+                    <button
+                      key={tpl.id}
+                      onClick={() => setCustomTemplateModal(tpl)}
+                      className="px-4 py-2 border border-gray-200 text-sm rounded-lg text-gray-600 hover:bg-white text-left"
+                    >
+                      <div className="font-medium">{tpl.name}</div>
+                      {tpl.description && <div className="text-xs text-gray-400 mt-0.5">{tpl.description}</div>}
+                    </button>
+                  ))}
                   <button
                     onClick={() => navigate('/builder')}
                     className="px-4 py-2 border border-dashed border-green-mid text-sm rounded-lg text-green-mid hover:bg-green-50 font-medium flex items-center gap-1.5"
@@ -552,23 +617,6 @@ export default function Home() {
                     Build New Audit
                   </button>
                 </div>
-                {auditTemplates.length > 0 && (
-                  <div className="mt-3 pt-3 border-t border-gray-200">
-                    <div className="text-xs text-gray-400 font-medium uppercase tracking-wide mb-2">Custom Templates</div>
-                    <div className="flex flex-wrap gap-2">
-                      {auditTemplates.map(tpl => (
-                        <button
-                          key={tpl.id}
-                          onClick={() => navigate('/audit/new', { state: { templateId: tpl.id } })}
-                          className="px-4 py-2 border border-gray-200 text-sm rounded-lg text-gray-600 hover:bg-white text-left"
-                        >
-                          <div className="font-medium">{tpl.name}</div>
-                          {tpl.description && <div className="text-xs text-gray-400 mt-0.5">{tpl.description}</div>}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
               </div>
             )}
           </div>
@@ -595,6 +643,95 @@ export default function Home() {
       {showUploadModal && (
         <UploadAuditModal onClose={() => setShowUploadModal(false)} />
       )}
+
+      {customTemplateModal && (
+        <CustomAuditForkModal
+          template={customTemplateModal}
+          audits={audits}
+          onClose={() => setCustomTemplateModal(null)}
+          onContinue={(audit) => { setCustomTemplateModal(null); navigate(`/audit/${audit.id}`); }}
+          onStartNew={() => { setCustomTemplateModal(null); navigate('/audit/new', { state: { templateId: customTemplateModal.id } }); }}
+          onDownloadTemplate={() => downloadCustomTemplate(customTemplateModal)}
+          onPrintBlank={() => { const t = customTemplateModal; setCustomTemplateModal(null); navigate('/audit/blank/print', { state: { templateSections: t.sections, templateName: t.name } }); }}
+        />
+      )}
+    </div>
+  );
+}
+
+function CustomAuditForkModal({ template, audits, onClose, onContinue, onStartNew, onDownloadTemplate, onPrintBlank }) {
+  const drafts = audits.filter(a => a.templateId === template.id && a.status === 'in-progress');
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-2xl w-full max-w-xl overflow-hidden shadow-xl">
+        <div className="bg-green-dark px-5 py-4 flex items-start justify-between">
+          <div>
+            <div className="text-white font-medium text-base">{template.name}</div>
+            {template.description && <div className="text-white/60 text-xs mt-0.5">{template.description}</div>}
+          </div>
+          <button onClick={onClose} className="text-white/60 hover:text-white mt-0.5 transition-colors">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+        </div>
+
+        <div className="p-5 space-y-5">
+          {drafts.length > 0 && (
+            <div>
+              <div className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-2">Resume in-progress ({drafts.length})</div>
+              {drafts.map(audit => {
+                const pct = Math.round((audit.sectionsComplete / audit.totalSections) * 100);
+                return (
+                  <div key={audit.id} className="border border-gray-200 rounded-xl p-3 mb-2 flex items-center gap-3 hover:border-green-mid cursor-pointer transition-colors" onClick={() => onContinue(audit)}>
+                    <div className="w-8 h-8 rounded-lg bg-green-100 flex items-center justify-center flex-shrink-0">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#27500a" strokeWidth="1.5"><path d="M9 12h6M9 16h4M6 3h12a2 2 0 012 2v14a2 2 0 01-2 2H6a2 2 0 01-2-2V5a2 2 0 012-2z"/></svg>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-medium text-gray-900 truncate">{audit.name}</div>
+                      <div className="text-xs text-gray-400 mt-0.5">{audit.sectionsComplete} of {audit.totalSections} sections · updated {audit.updatedAt}</div>
+                      <div className="h-1 bg-gray-100 rounded-full mt-1.5"><div className="h-1 bg-green-mid rounded-full" style={{ width: `${pct}%` }} /></div>
+                    </div>
+                    <span className="text-xs font-medium text-amber-800 bg-amber-50 px-2 py-0.5 rounded-full flex items-center gap-1 flex-shrink-0">
+                      <InProgressIcon /> In progress
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          <div>
+            <div className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-2">Start a new audit</div>
+            <div className="grid grid-cols-3 gap-2">
+              <button onClick={onStartNew} className="border border-gray-200 rounded-xl p-3.5 text-left hover:border-green-mid hover:bg-green-50/40 transition-colors">
+                <div className="w-7 h-7 rounded-lg bg-green-100 flex items-center justify-center mb-2.5">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#27500a" strokeWidth="1.5"><path d="M9 12h6M9 16h4M6 3h12a2 2 0 012 2v14a2 2 0 01-2 2H6a2 2 0 01-2-2V5a2 2 0 012-2z"/><line x1="12" y1="7" x2="12" y2="3"/><line x1="9" y1="7" x2="15" y2="7"/></svg>
+                </div>
+                <div className="text-sm font-medium text-gray-900 mb-0.5">Digital Audit</div>
+                <div className="text-xs text-gray-400 leading-relaxed">Complete section by section in-browser.</div>
+              </button>
+              <button onClick={onDownloadTemplate} className="border border-gray-200 rounded-xl p-3.5 text-left hover:border-blue-400 hover:bg-blue-50/40 transition-colors">
+                <div className="w-7 h-7 rounded-lg bg-blue-50 flex items-center justify-center mb-2.5">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#0c447c" strokeWidth="1.5"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><polyline points="9 15 12 18 15 15"/></svg>
+                </div>
+                <div className="text-sm font-medium text-gray-900 mb-0.5">Excel Audit</div>
+                <div className="text-xs text-gray-400 leading-relaxed">Download template and fill out offline.</div>
+              </button>
+              <button onClick={onPrintBlank} className="border border-gray-200 rounded-xl p-3.5 text-left hover:border-amber-400 hover:bg-amber-50/40 transition-colors">
+                <div className="w-7 h-7 rounded-lg bg-amber-50 flex items-center justify-center mb-2.5">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#92400e" strokeWidth="1.5"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+                </div>
+                <div className="text-sm font-medium text-gray-900 mb-0.5">Paper Audit</div>
+                <div className="text-xs text-gray-400 leading-relaxed">Print blank form and fill out on-site.</div>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div className="px-5 py-3 border-t border-gray-100 flex justify-end">
+          <button onClick={onClose} className="px-3 py-1.5 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50">Cancel</button>
+        </div>
+      </div>
     </div>
   );
 }

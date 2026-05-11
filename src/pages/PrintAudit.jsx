@@ -1,4 +1,4 @@
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useAudit } from '../context/AuditContext';
 import { BIOMED_SECTIONS } from '../data/biomedAudit';
 
@@ -124,12 +124,39 @@ function QuestionRow({ q }) {
   );
 }
 
+function ItemTableBlock({ q }) {
+  return (
+    <div className="mb-3">
+      <div className="text-xs font-medium text-gray-600 mb-1">{q.text}</div>
+      <table className="w-full text-xs border-collapse border border-gray-400">
+        <thead>
+          <tr className="bg-gray-100">
+            {(q.columns || []).map(col => (
+              <th key={col.id} className="border border-gray-400 px-1.5 py-1 text-left font-medium">{col.name}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {[...Array(5)].map((_, i) => (
+            <tr key={i} style={{ height: '26px' }}>
+              {(q.columns || []).map((col, j) => (
+                <td key={j} className="border border-gray-300 px-1.5 py-1" />
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 function GroupBlock({ group }) {
   const hasMachines = group.questions.some(q => q.type === 'machine-row');
   const hasEquipment = group.questions.some(q => q.type === 'equipment-row');
   const regularQs = group.questions.filter(q =>
-    q.type !== 'machine-row' && q.type !== 'equipment-row' && q.type !== 'machine-extra' && q.type !== 'equipment-extra' && q.type !== 'calculated'
+    q.type !== 'machine-row' && q.type !== 'equipment-row' && q.type !== 'machine-extra' && q.type !== 'equipment-extra' && q.type !== 'calculated' && q.type !== 'item-table'
   );
+  const itemTables = group.questions.filter(q => q.type === 'item-table');
 
   return (
     <div className="mb-4">
@@ -137,6 +164,7 @@ function GroupBlock({ group }) {
         {group.name}
       </div>
       {regularQs.map(q => <QuestionRow key={q.id} q={q} />)}
+      {itemTables.map(q => <ItemTableBlock key={q.id} q={q} />)}
       {hasMachines && <MachineTable questions={group.questions} />}
       {hasEquipment && <EquipTable questions={group.questions} label="" />}
     </div>
@@ -146,8 +174,17 @@ function GroupBlock({ group }) {
 export default function PrintAudit() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const { audits } = useAudit();
   const audit = id === 'blank' ? null : audits.find(a => a.id === id);
+
+  const isCustom = audit?.type === 'custom' || !!location.state?.templateSections;
+  const sections = isCustom
+    ? (audit?.customSections || location.state?.templateSections || BIOMED_SECTIONS)
+    : BIOMED_SECTIONS;
+  const auditTitle = audit
+    ? audit.name
+    : (location.state?.templateName ? `${location.state.templateName} — Blank Form` : 'BioMed Audit — Rendevor Dialysis');
 
   return (
     <>
@@ -178,14 +215,14 @@ export default function PrintAudit() {
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
           Print Audit
         </button>
-        <span className="text-sm text-gray-500">{audit ? audit.name : 'Blank Form'}</span>
+        <span className="text-sm text-gray-500">{auditTitle}</span>
       </div>
 
       <div className="print-page pt-16 print:pt-0">
         {/* Audit header */}
         <div className="mb-6 pb-4 border-b-2 border-gray-800">
           <div className="text-xl font-bold text-gray-900 mb-2">
-            {audit ? audit.name : 'BioMed Audit — Rendevor Dialysis'}
+            {auditTitle}
           </div>
           <div className="grid grid-cols-3 gap-4 text-xs">
             <div className="flex items-center gap-1">
@@ -204,7 +241,7 @@ export default function PrintAudit() {
         </div>
 
         {/* Sections */}
-        {BIOMED_SECTIONS.map((section, si) => (
+        {sections.map((section, si) => (
           <div key={section.id} className={si > 0 ? 'page-break' : ''}>
             <div className="text-base font-bold text-white bg-gray-800 px-3 py-1.5 mb-3 rounded">
               {section.name}

@@ -653,14 +653,37 @@ export default function Home() {
           onStartNew={() => { setCustomTemplateModal(null); navigate('/audit/new', { state: { templateId: customTemplateModal.id } }); }}
           onDownloadTemplate={() => downloadCustomTemplate(customTemplateModal)}
           onPrintBlank={() => { const t = customTemplateModal; setCustomTemplateModal(null); navigate('/audit/blank/print', { state: { templateSections: t.sections, templateName: t.name } }); }}
+          onUpload={() => { setCustomTemplateModal(null); setShowUploadModal(true); }}
+          onPaperOcr={() => { setCustomTemplateModal(null); navigate('/audit/new', { state: { openOcr: true } }); }}
         />
       )}
     </div>
   );
 }
 
-function CustomAuditForkModal({ template, audits, onClose, onContinue, onStartNew, onDownloadTemplate, onPrintBlank }) {
+function CustomAuditForkModal({ template, audits, onClose, onContinue, onStartNew, onDownloadTemplate, onPrintBlank, onUpload, onPaperOcr }) {
   const drafts = audits.filter(a => a.templateId === template.id && a.status === 'in-progress');
+  const [files, setFiles] = useState([]);
+  const [isDragging, setIsDragging] = useState(false);
+  const fileRef = useRef();
+
+  function addFiles(incoming) {
+    setFiles(prev => {
+      const existing = new Set(prev.map(f => f.name + f.size));
+      return [...prev, ...Array.from(incoming).filter(f => !existing.has(f.name + f.size))];
+    });
+  }
+
+  function removeFile(idx) {
+    setFiles(prev => prev.filter((_, i) => i !== idx));
+  }
+
+  function handleUpload() {
+    if (!files.length) return;
+    const hasExcel = files.some(f => /\.(xlsx?)$/i.test(f.name));
+    const hasImages = files.some(f => f.type.startsWith('image/') || /\.pdf$/i.test(f.name));
+    if (hasExcel && !hasImages) { onUpload(); } else { onPaperOcr(); }
+  }
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
@@ -725,6 +748,48 @@ function CustomAuditForkModal({ template, audits, onClose, onContinue, onStartNe
                 <div className="text-xs text-gray-400 leading-relaxed">Print blank form and fill out on-site.</div>
               </button>
             </div>
+          </div>
+
+          {/* Upload a completed audit */}
+          <div>
+            <div className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-2">Upload a completed audit</div>
+            <div
+              className={`border-2 border-dashed rounded-xl p-4 transition-colors ${isDragging ? 'border-green-mid bg-green-50' : 'border-gray-200 hover:border-gray-300'}`}
+              onDragOver={e => { e.preventDefault(); setIsDragging(true); }}
+              onDragLeave={() => setIsDragging(false)}
+              onDrop={e => { e.preventDefault(); setIsDragging(false); addFiles(e.dataTransfer.files); }}
+            >
+              {files.length === 0 ? (
+                <div className="text-center py-2">
+                  <svg className="mx-auto mb-2 text-gray-300" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                  <div className="text-xs text-gray-500">Drop files here or <button className="text-green-mid underline" onClick={() => fileRef.current.click()}>browse</button></div>
+                  <div className="text-xs text-gray-400 mt-0.5">Excel, JPG, PNG, PDF · Multiple files supported</div>
+                </div>
+              ) : (
+                <div className="space-y-1.5">
+                  {files.map((f, i) => (
+                    <div key={i} className="flex items-center gap-2 bg-white border border-gray-100 rounded-lg px-3 py-1.5">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#6b7280" strokeWidth="2" className="flex-shrink-0">
+                        {/\.(xlsx?)$/i.test(f.name)
+                          ? <><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></>
+                          : <><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></>}
+                      </svg>
+                      <span className="text-xs text-gray-700 flex-1 truncate">{f.name}</span>
+                      <button onClick={() => removeFile(i)} className="text-gray-300 hover:text-red-400 transition-colors flex-shrink-0">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                      </button>
+                    </div>
+                  ))}
+                  <button className="text-xs text-green-mid hover:underline mt-1" onClick={() => fileRef.current.click()}>+ Add more files</button>
+                </div>
+              )}
+              <input ref={fileRef} type="file" multiple accept=".xlsx,.xls,image/*,.pdf" className="hidden" onChange={e => addFiles(e.target.files)} />
+            </div>
+            {files.length > 0 && (
+              <button onClick={handleUpload} className="mt-2 w-full py-2 bg-green-mid text-white rounded-xl text-sm font-medium hover:bg-green-700 transition-colors">
+                Upload {files.length} file{files.length !== 1 ? 's' : ''}
+              </button>
+            )}
           </div>
         </div>
 

@@ -71,22 +71,46 @@ export function AuditProvider({ children }) {
   ]);
 
   const [currentAudit, setCurrentAudit] = useState(null);
+  const [auditTemplates, setAuditTemplates] = useState([]);
+
+  function createTemplate(data) {
+    const today = new Date().toISOString().split('T')[0];
+    const newTemplate = { ...data, id: 'tpl_' + Date.now(), createdAt: today };
+    setAuditTemplates(prev => [newTemplate, ...prev]);
+    return newTemplate;
+  }
 
   function createAudit(data) {
+    const today = new Date().toISOString().split('T')[0];
+    let auditFields = {
+      type: 'biomed',
+      name: `${data.facility} — BioMed Audit`,
+      totalSections: 7,
+    };
+    if (data.templateId) {
+      const template = auditTemplates.find(t => t.id === data.templateId);
+      if (template) {
+        auditFields = {
+          type: 'custom',
+          name: `${data.facility} — ${template.name}`,
+          totalSections: template.sections.length,
+          customSections: template.sections,
+          templateId: template.id,
+        };
+      }
+    }
     const newAudit = {
       id: 'a' + Date.now(),
-      name: `${data.facility} — BioMed Audit`,
-      type: 'biomed',
       facility: data.facility,
       auditor: data.auditor || 'Alice Abbott',
       status: 'in-progress',
-      createdAt: new Date().toISOString().split('T')[0],
-      updatedAt: new Date().toISOString().split('T')[0],
+      createdAt: today,
+      updatedAt: today,
       sectionsComplete: 0,
-      totalSections: 7,
       answers: {},
       pocItems: [],
       eventHistory: [],
+      ...auditFields,
     };
     setAudits(prev => [newAudit, ...prev]);
     return newAudit;
@@ -127,7 +151,7 @@ export function AuditProvider({ children }) {
   }
 
   return (
-    <AuditContext.Provider value={{ audits, setAudits, currentAudit, setCurrentAudit, createAudit, updateAudit, submitAudit, createUploadedAudit }}>
+    <AuditContext.Provider value={{ audits, setAudits, currentAudit, setCurrentAudit, createAudit, updateAudit, submitAudit, createUploadedAudit, auditTemplates, createTemplate }}>
       {children}
     </AuditContext.Provider>
   );

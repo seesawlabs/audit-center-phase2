@@ -8,7 +8,7 @@ import PhotoUpload from '../components/PhotoUpload';
 
 function groupIsComplete(group, answers) {
   return group.questions.every(q => {
-    if (q.type === 'calculated' || q.type === 'equipment-extra' || q.type === 'machine-extra') return true;
+    if (q.type === 'calculated' || q.type === 'equipment-extra' || q.type === 'machine-extra' || q.type === 'item-table') return true;
     if (q.type === 'equipment-row') {
       const a = answers[q.id];
       return a && a.manufacturer && a.serial;
@@ -40,7 +40,7 @@ export default function AuditForm() {
   const [showOcr, setShowOcr] = useState(location.state?.openOcr || false);
   const hideQuestion = id => setHiddenQIds(prev => new Set([...prev, id]));
 
-  const sections = BIOMED_SECTIONS;
+  const sections = (audit?.type === 'custom' && audit.customSections) ? audit.customSections : BIOMED_SECTIONS;
   const currentSection = sections[sectionIdx];
   const currentGroup = currentSection.groups[groupIdx];
 
@@ -343,6 +343,78 @@ export default function AuditForm() {
 
 
 
+function ItemTableCard({ q, answer, onAnswer }) {
+  const rows = answer || [];
+  const cols = q.columns || [];
+
+  const add = () => {
+    const newRow = {};
+    cols.forEach(c => { newRow[c.id] = ''; });
+    onAnswer(q.id, [...rows, newRow]);
+  };
+  const upd = (idx, colId, val) => onAnswer(q.id, rows.map((r, i) => i === idx ? { ...r, [colId]: val } : r));
+  const remove = (idx) => onAnswer(q.id, rows.filter((_, i) => i !== idx));
+
+  return (
+    <div className="py-3">
+      <div className="text-sm text-gray-800 mb-3 leading-relaxed">{q.text}</div>
+      <div className="space-y-3">
+        {rows.map((row, idx) => (
+          <div key={idx} className="bg-gray-50 rounded-xl p-4 relative">
+            <RemoveButton onClick={() => remove(idx)} />
+            <div className="text-xs font-medium text-gray-500 mb-3">Item {idx + 1}</div>
+            <div className="grid grid-cols-2 gap-x-4 gap-y-3">
+              {cols.map(col => {
+                const val = row[col.id] || '';
+                if (col.type === 'yn') {
+                  return (
+                    <div key={col.id}>
+                      <div className="text-xs text-gray-500 mb-1">{col.label}</div>
+                      <div className="flex gap-1">
+                        {['yes', 'no', 'na'].map(opt => {
+                          const sel = { yes: 'bg-green-100 border-green-mid text-green-800', no: 'bg-red-50 border-red-400 text-red-700', na: 'bg-gray-100 border-gray-400 text-gray-700' };
+                          return (
+                            <button key={opt} onClick={() => upd(idx, col.id, val === opt ? '' : opt)}
+                              className={`flex-1 py-1 border rounded text-xs font-medium transition-all ${val === opt ? sel[opt] : 'border-gray-200 text-gray-400 hover:border-gray-300'}`}>
+                              {opt === 'na' ? 'N/A' : opt.charAt(0).toUpperCase() + opt.slice(1)}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                }
+                if (col.type === 'dropdown') {
+                  const opts = (col.options || '').split(',').map(o => o.trim()).filter(Boolean);
+                  return (
+                    <div key={col.id}>
+                      <div className="text-xs text-gray-500 mb-1">{col.label}</div>
+                      <select value={val} onChange={e => upd(idx, col.id, e.target.value)}
+                        className="w-full px-2.5 py-1.5 border border-gray-200 rounded-lg text-xs text-gray-800 focus:outline-none focus:border-green-mid bg-white">
+                        <option value="">— Select —</option>
+                        {opts.map(o => <option key={o} value={o}>{o}</option>)}
+                      </select>
+                    </div>
+                  );
+                }
+                return (
+                  <div key={col.id}>
+                    <div className="text-xs text-gray-500 mb-1">{col.label}</div>
+                    <input type={col.type === 'number' ? 'number' : 'text'} value={val}
+                      onChange={e => upd(idx, col.id, e.target.value)}
+                      className="w-full px-2.5 py-1.5 border border-gray-200 rounded-lg text-xs text-gray-800 focus:outline-none focus:border-green-mid" />
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ))}
+        <AddMoreButton onClick={add} label={`Add ${q.text || 'item'}`} />
+      </div>
+    </div>
+  );
+}
+
 function QuestionCard({ q, answer, comment, photos, calcValue, onAnswer, onRemove }) {
   if (q.type === 'calculated') {
     return (
@@ -356,6 +428,7 @@ function QuestionCard({ q, answer, comment, photos, calcValue, onAnswer, onRemov
     );
   }
 
+  if (q.type === 'item-table') return <ItemTableCard q={q} answer={answer} onAnswer={onAnswer} />;
   if (q.type === 'machine-row') return <MachineRowCard q={q} answer={answer} onAnswer={onAnswer} onRemove={onRemove} />;
   if (q.type === 'equipment-row') return <EquipmentRowCard q={q} answer={answer} onAnswer={onAnswer} onRemove={onRemove} />;
   if (q.type === 'equipment-extra') return <EquipmentExtraCard q={q} answer={answer} onAnswer={onAnswer} />;

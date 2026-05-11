@@ -5,6 +5,7 @@ import NewAudit from './pages/NewAudit';
 import AuditForm from './pages/AuditForm';
 import PocFlow from './pages/PocFlow';
 import PrintAudit from './pages/PrintAudit';
+import AuditBuilder from './pages/AuditBuilder';
 
 export default function App() {
   return (
@@ -16,6 +17,7 @@ export default function App() {
           <Route path="/audit/:id" element={<AuditForm />} />
           <Route path="/audit/:id/poc" element={<PocFlow />} />
           <Route path="/audit/:id/print" element={<PrintAudit />} />
+          <Route path="/builder" element={<AuditBuilder />} />
         </Routes>
       </BrowserRouter>
     </AuditProvider>

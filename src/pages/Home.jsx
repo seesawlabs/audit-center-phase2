@@ -479,7 +479,7 @@ function AuditRow({ audit, onOpen }) {
 
 export default function Home() {
   const navigate = useNavigate();
-  const { audits } = useAudit();
+  const { audits, auditTemplates } = useAudit();
   const [startOpen, setStartOpen] = useState(true);
   const [tab, setTab] = useState('my');
   const [showBiomedModal, setShowBiomedModal] = useState(false);
@@ -530,19 +530,45 @@ export default function Home() {
               </svg>
             </div>
             {startOpen && (
-              <div className="bg-gray-50 border border-gray-200 border-t-0 rounded-b-xl px-4 py-3 flex gap-2">
-                <button
-                  onClick={() => setShowBiomedModal(true)}
-                  className="px-4 py-2 border border-gray-200 text-sm rounded-lg text-gray-600 hover:bg-white font-medium"
-                >
-                  BioMed Audit
-                </button>
-                <button className="px-4 py-2 border border-gray-200 text-sm rounded-lg text-gray-600 hover:bg-white font-medium">
-                  Clinical Audit
-                </button>
-                <button className="px-4 py-2 border border-gray-200 text-sm rounded-lg text-gray-600 hover:bg-white font-medium">
-                  Upload Custom Audit
-                </button>
+              <div className="bg-gray-50 border border-gray-200 border-t-0 rounded-b-xl px-4 py-3">
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    onClick={() => setShowBiomedModal(true)}
+                    className="px-4 py-2 border border-gray-200 text-sm rounded-lg text-gray-600 hover:bg-white font-medium"
+                  >
+                    BioMed Audit
+                  </button>
+                  <button className="px-4 py-2 border border-gray-200 text-sm rounded-lg text-gray-600 hover:bg-white font-medium">
+                    Clinical Audit
+                  </button>
+                  <button className="px-4 py-2 border border-gray-200 text-sm rounded-lg text-gray-600 hover:bg-white font-medium">
+                    Upload Custom Audit
+                  </button>
+                  <button
+                    onClick={() => navigate('/builder')}
+                    className="px-4 py-2 border border-dashed border-green-mid text-sm rounded-lg text-green-mid hover:bg-green-50 font-medium flex items-center gap-1.5"
+                  >
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                    Build New Audit
+                  </button>
+                </div>
+                {auditTemplates.length > 0 && (
+                  <div className="mt-3 pt-3 border-t border-gray-200">
+                    <div className="text-xs text-gray-400 font-medium uppercase tracking-wide mb-2">Custom Templates</div>
+                    <div className="flex flex-wrap gap-2">
+                      {auditTemplates.map(tpl => (
+                        <button
+                          key={tpl.id}
+                          onClick={() => navigate('/audit/new', { state: { templateId: tpl.id } })}
+                          className="px-4 py-2 border border-gray-200 text-sm rounded-lg text-gray-600 hover:bg-white text-left"
+                        >
+                          <div className="font-medium">{tpl.name}</div>
+                          {tpl.description && <div className="text-xs text-gray-400 mt-0.5">{tpl.description}</div>}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>

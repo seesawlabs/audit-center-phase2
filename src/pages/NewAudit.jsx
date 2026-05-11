@@ -8,13 +8,18 @@ export default function NewAudit() {
   const navigate = useNavigate();
   const location = useLocation();
   const openOcr = location.state?.openOcr || false;
-  const { createAudit } = useAudit();
+  const templateId = location.state?.templateId || null;
+  const { createAudit, auditTemplates } = useAudit();
   const [facility, setFacility] = useState('');
   const [auditor, setAuditor] = useState('Alice Abbott');
 
+  const template = templateId ? auditTemplates.find(t => t.id === templateId) : null;
+  const auditLabel = template ? template.name : 'BioMed Audit';
+  const auditSubtitle = template ? (template.description || 'Custom Audit') : 'Rendevor Dialysis — Annual Technical Audit';
+
   function handleStart() {
     if (!facility) return;
-    const audit = createAudit({ facility, auditor });
+    const audit = createAudit({ facility, auditor, templateId });
     navigate(`/audit/${audit.id}`, { state: { openOcr } });
   }
 
@@ -25,16 +30,16 @@ export default function NewAudit() {
         <div className="px-5 pt-3 pb-4 border-b border-gray-100">
           <div className="text-xs text-gray-400 flex items-center gap-1 mb-1">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
-            Audit Center › BioMed Audit
+            Audit Center › {auditLabel}
           </div>
-          <div className="text-xl font-medium text-gray-900">Start New BioMed Audit</div>
+          <div className="text-xl font-medium text-gray-900">Start New {auditLabel}</div>
         </div>
 
         <div className="flex-1 flex items-center justify-center p-5">
           <div className="bg-white border border-gray-200 rounded-2xl w-full max-w-md overflow-hidden">
             <div className="bg-green-dark px-5 py-4">
-              <div className="text-white font-medium">BioMed Audit Setup</div>
-              <div className="text-white/60 text-xs mt-0.5">Rendevor Dialysis — Annual Technical Audit</div>
+              <div className="text-white font-medium">{auditLabel} Setup</div>
+              <div className="text-white/60 text-xs mt-0.5">{auditSubtitle}</div>
             </div>
 
             <div className="p-5 space-y-4">

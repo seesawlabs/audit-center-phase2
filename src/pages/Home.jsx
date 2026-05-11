@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import Sidebar from '../components/Sidebar';
 import { useAudit } from '../context/AuditContext';
 import UploadAuditModal from '../components/UploadAuditModal';
+import PocDetailModal from '../components/PocDetailModal';
 
 async function downloadBiomedTemplate() {
   const { default: ExcelJS } = await import('exceljs');
@@ -301,56 +302,69 @@ function InProgressIcon() {
   );
 }
 
-function PocRow({ poc }) {
-  const [showPhotos, setShowPhotos] = useState(false);
+function PocRow({ poc, onUpdate }) {
+  const [showDetail, setShowDetail] = useState(false);
   const isOverdue = poc.status === 'incomplete' && poc.dueDate && new Date(poc.dueDate) < new Date();
   const statusColors = {
     complete: 'text-green-800 bg-green-100',
+    Complete: 'text-green-800 bg-green-100',
     incomplete: isOverdue ? 'text-red-800 bg-red-50' : 'text-amber-800 bg-amber-50',
+    Incomplete: isOverdue ? 'text-red-800 bg-red-50' : 'text-amber-800 bg-amber-50',
   };
   const photoCount = poc.photos?.length || 0;
+  const statusLabel = isOverdue ? 'Incomplete (overdue)' : poc.status;
   return (
-    <div className="bg-gray-50 rounded-lg border border-gray-100 mb-2 text-xs">
-      <div className="flex items-center gap-4 px-3 py-2.5">
-        <StatusDot status={poc.status === 'complete' ? 'submitted' : isOverdue ? 'not-started' : 'in-progress'} />
-        <div className="flex-1 min-w-0">
-          <div className="text-gray-800 font-medium truncate">{poc.text}</div>
-          <div className="text-gray-500">{poc.section}</div>
-        </div>
-        <div className="text-gray-500 w-28">Assigned: <span className="text-gray-700">{poc.assignee}</span></div>
-        <div className={`w-28 ${isOverdue ? 'text-red-700 font-medium' : 'text-gray-500'}`}>
-          {poc.dueDate} {isOverdue && '(overdue)'}
-        </div>
-        <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${statusColors[poc.status] || 'text-gray-600 bg-gray-100'}`}>
-          {isOverdue ? 'Incomplete (overdue)' : poc.status === 'complete' ? 'Complete' : 'Incomplete'}
-        </span>
-        {photoCount > 0 && (
+    <>
+      <div className="bg-gray-50 rounded-lg border border-gray-100 mb-2 text-xs">
+        <div className="flex items-center gap-4 px-3 py-2.5">
+          <StatusDot status={poc.status === 'complete' || poc.status === 'Complete' ? 'submitted' : isOverdue ? 'not-started' : 'in-progress'} />
+          <div className="flex-1 min-w-0">
+            <div className="text-gray-800 font-medium truncate">{poc.text}</div>
+            <div className="text-gray-500">{poc.section}</div>
+          </div>
+          <div className="text-gray-500 w-28">Assigned: <span className="text-gray-700">{poc.assignee}</span></div>
+          <div className={`w-28 ${isOverdue ? 'text-red-700 font-medium' : 'text-gray-500'}`}>
+            {poc.dueDate} {isOverdue && '(overdue)'}
+          </div>
+          <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${statusColors[poc.status] || 'text-gray-600 bg-gray-100'}`}>
+            {statusLabel}
+          </span>
+          {photoCount > 0 && (
+            <span className="flex items-center gap-1 text-xs text-gray-400">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg>
+              {photoCount}
+            </span>
+          )}
           <button
-            onClick={() => setShowPhotos(!showPhotos)}
-            className="flex items-center gap-1 px-2 py-0.5 border border-gray-200 rounded text-xs text-gray-600 hover:bg-gray-100 whitespace-nowrap"
+            onClick={() => setShowDetail(true)}
+            className="px-3 py-1 border border-gray-200 rounded text-xs text-gray-600 hover:bg-gray-100 whitespace-nowrap"
           >
-            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg>
-            {photoCount}
+            Plan Details
           </button>
-        )}
-        <button className="px-3 py-1 border border-gray-200 rounded text-xs text-gray-600 hover:bg-gray-100 whitespace-nowrap">Plan Details</button>
-        <button className="px-3 py-1 border border-gray-200 rounded text-xs text-gray-600 hover:bg-gray-100 whitespace-nowrap">Update Status</button>
-      </div>
-      {showPhotos && photoCount > 0 && (
-        <div className="px-3 pb-3 flex gap-2 flex-wrap border-t border-gray-100 pt-2.5">
-          {poc.photos.map((photo, idx) => (
-            <img key={idx} src={photo.url} alt={photo.name} className="w-16 h-16 object-cover rounded-lg border border-gray-200" />
-          ))}
+          <button className="px-3 py-1 border border-gray-200 rounded text-xs text-gray-600 hover:bg-gray-100 whitespace-nowrap">Update Status</button>
         </div>
+      </div>
+      {showDetail && (
+        <PocDetailModal
+          poc={poc}
+          onSave={onUpdate}
+          onClose={() => setShowDetail(false)}
+        />
       )}
-    </div>
+    </>
   );
 }
 
 function AuditRow({ audit, onOpen }) {
+  const { updateAudit } = useAudit();
   const [expanded, setExpanded] = useState(audit.id === 'a3');
   const isInProgress = audit.status === 'in-progress';
   const hasPoc = audit.pocItems && audit.pocItems.length > 0;
+
+  function handleUpdatePoc(updatedPoc) {
+    const pocItems = audit.pocItems.map(p => p.id === updatedPoc.id ? updatedPoc : p);
+    updateAudit(audit.id, { pocItems });
+  }
 
   return (
     <div className={`rounded-xl overflow-hidden mb-2 transition-all ${expanded ? 'border-2 border-green-dark shadow-md' : 'border border-gray-200'}`}>
@@ -402,7 +416,7 @@ function AuditRow({ audit, onOpen }) {
           {hasPoc && (
             <>
               <div className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Plan of Corrections</div>
-              {audit.pocItems.map(poc => <PocRow key={poc.id} poc={poc} />)}
+              {audit.pocItems.map(poc => <PocRow key={poc.id} poc={poc} onUpdate={handleUpdatePoc} />)}
             </>
           )}
         </div>

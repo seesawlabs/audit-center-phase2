@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import Sidebar from '../components/Sidebar';
 import { useAudit } from '../context/AuditContext';
@@ -292,7 +292,7 @@ export default function AuditForm() {
 
             <div className="flex-1 overflow-y-auto p-5 divide-y divide-gray-100">
               {currentGroup.questions.filter(q => !hiddenQIds.has(q.id)).map(q => (
-                <QuestionCard key={q.id} q={q} answer={answers[q.id]} comment={answers[q.id + '_comment']} calcValue={q.type === 'calculated' ? getCalcValue(q) : null} onAnswer={setAnswer} onRemove={['machine-row', 'equipment-row'].includes(q.type) ? () => hideQuestion(q.id) : null} />
+                <QuestionCard key={q.id} q={q} answer={answers[q.id]} comment={answers[q.id + '_comment']} photos={answers[q.id + '_photos'] || []} calcValue={q.type === 'calculated' ? getCalcValue(q) : null} onAnswer={setAnswer} onRemove={['machine-row', 'equipment-row'].includes(q.type) ? () => hideQuestion(q.id) : null} />
               ))}
             </div>
 
@@ -334,7 +334,64 @@ export default function AuditForm() {
 
 
 
-function QuestionCard({ q, answer, comment, calcValue, onAnswer, onRemove }) {
+function PhotoUpload({ photos = [], onChange }) {
+  const galleryRef = useRef(null);
+  const cameraRef = useRef(null);
+
+  const handleFiles = (files) => {
+    const fileArray = Array.from(files);
+    if (!fileArray.length) return;
+    Promise.all(
+      fileArray.map(file => new Promise(resolve => {
+        const reader = new FileReader();
+        reader.onload = e => resolve({ url: e.target.result, name: file.name });
+        reader.readAsDataURL(file);
+      }))
+    ).then(newPhotos => onChange([...photos, ...newPhotos]));
+  };
+
+  return (
+    <div>
+      {photos.length > 0 && (
+        <div className="flex gap-2 flex-wrap mb-2">
+          {photos.map((photo, idx) => (
+            <div key={idx} className="relative w-16 h-16">
+              <img src={photo.url} alt={photo.name} className="w-full h-full object-cover rounded-lg border border-gray-200" />
+              <button
+                onClick={() => onChange(photos.filter((_, i) => i !== idx))}
+                className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white rounded-full flex items-center justify-center"
+              >
+                <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+      <div className="flex gap-2">
+        <button
+          onClick={() => cameraRef.current?.click()}
+          className="flex items-center gap-1.5 px-2.5 py-1.5 border border-gray-200 rounded-lg text-xs text-gray-600 hover:border-gray-300 hover:bg-gray-50 transition-colors"
+        >
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg>
+          Take Photo
+        </button>
+        <button
+          onClick={() => galleryRef.current?.click()}
+          className="flex items-center gap-1.5 px-2.5 py-1.5 border border-gray-200 rounded-lg text-xs text-gray-600 hover:border-gray-300 hover:bg-gray-50 transition-colors"
+        >
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+          Upload Photo
+        </button>
+      </div>
+      <input ref={cameraRef} type="file" accept="image/*" capture="environment" multiple className="hidden"
+        onChange={e => { handleFiles(e.target.files); e.target.value = ''; }} />
+      <input ref={galleryRef} type="file" accept="image/*" multiple className="hidden"
+        onChange={e => { handleFiles(e.target.files); e.target.value = ''; }} />
+    </div>
+  );
+}
+
+function QuestionCard({ q, answer, comment, photos, calcValue, onAnswer, onRemove }) {
   if (q.type === 'calculated') {
     return (
       <div className="rounded-xl p-4 bg-gray-50">
@@ -375,9 +432,15 @@ function QuestionCard({ q, answer, comment, calcValue, onAnswer, onRemove }) {
             })}
           </div>
           {answer === 'no' && (
-            <div className="flex items-center gap-2 mt-2.5 px-3 py-2 bg-red-50 rounded-lg text-xs text-red-700">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-              This item will be added to the plan of correction. Any comment left below will be included.
+            <div className="mt-2.5 space-y-2">
+              <div className="flex items-center gap-2 px-3 py-2 bg-red-50 rounded-lg text-xs text-red-700">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                This item will be added to the plan of correction. Any comment left below will be included.
+              </div>
+              <PhotoUpload
+                photos={photos}
+                onChange={newPhotos => onAnswer(q.id + '_photos', newPhotos)}
+              />
             </div>
           )}
           {answer && (
@@ -496,6 +559,17 @@ function MachineRowCard({ q, answer, onAnswer, onRemove }) {
         <RowInput label="Rendevor Tag #" value={ans.tag || ''} onChange={v => upd('tag', v)} />
         <RowInput label="Machine Hours" value={ans.hours || ''} onChange={v => upd('hours', v)} type="number" />
       </div>
+      {[['diasafe', 'Diasafe'], ['elecSafety', 'Electrical Safety'], ['wos', 'Work Orders in Binder']].map(([field, label]) =>
+        ans[field] === 'no' ? (
+          <div key={field} className="mt-3 px-3 py-2.5 bg-red-50 rounded-lg">
+            <div className="text-xs text-red-700 mb-2 font-medium">{label} — attach photo evidence</div>
+            <PhotoUpload
+              photos={ans[field + '_photos'] || []}
+              onChange={newPhotos => upd(field + '_photos', newPhotos)}
+            />
+          </div>
+        ) : null
+      )}
     </div>
   );
 }

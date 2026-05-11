@@ -14,28 +14,72 @@ const COL_TYPE_LABELS = { text: 'Text', number: 'Number', yn: 'Yes / No', dropdo
 const BUILDER_TYPES = new Set(['yn', 'text', 'number', 'item-table']);
 
 function toBuilderSections(rawSections) {
+  const sid = () => Math.random().toString(36).slice(2, 9);
+
   return rawSections
     .map(section => ({
-      id: section.id || ('s_' + Math.random().toString(36).slice(2, 9)),
+      id: section.id || ('s_' + sid()),
       name: section.name,
       groups: section.groups
-        .map(group => ({
-          id: group.id || ('g_' + Math.random().toString(36).slice(2, 9)),
-          name: group.name,
-          questions: group.questions
+        .map(group => {
+          const machineRows = group.questions.filter(q => q.type === 'machine-row');
+          const equipRows   = group.questions.filter(q => q.type === 'equipment-row');
+          const regularQs   = group.questions
             .filter(q => BUILDER_TYPES.has(q.type) || q.type === 'calculated')
             .map(q => ({
-              id: q.id || ('q_' + Math.random().toString(36).slice(2, 9)),
+              id: q.id || ('q_' + sid()),
               text: q.text,
               type: q.type === 'calculated' ? 'number' : q.type,
               columns: (q.columns || []).map(c => ({
-                id: c.id || ('c_' + Math.random().toString(36).slice(2, 9)),
+                id: c.id || ('c_' + sid()),
                 label: c.name || c.label || '',
                 type: c.type || 'text',
                 options: c.options || '',
               })),
-            })),
-        }))
+            }));
+
+          if (machineRows.length > 0) {
+            regularQs.push({
+              id: 'tbl_mach_' + group.id,
+              text: machineRows.map(q => q.text).join(', '),
+              type: 'item-table',
+              columns: [
+                { id: 'mc1', label: 'Machine',       type: 'text',   options: '' },
+                { id: 'mc2', label: 'Serial #',      type: 'text',   options: '' },
+                { id: 'mc3', label: 'Machine Type',  type: 'text',   options: '' },
+                { id: 'mc4', label: 'SA Dates',      type: 'text',   options: '' },
+                { id: 'mc5', label: 'Annual Dates',  type: 'text',   options: '' },
+                { id: 'mc6', label: 'Diasafe',       type: 'yn',     options: '' },
+                { id: 'mc7', label: 'Elec Safety',   type: 'yn',     options: '' },
+                { id: 'mc8', label: 'WOs in Binder', type: 'yn',     options: '' },
+                { id: 'mc9', label: 'Tag #',         type: 'text',   options: '' },
+                { id: 'mc10',label: 'Hours',         type: 'number', options: '' },
+              ],
+            });
+          }
+
+          if (equipRows.length > 0) {
+            regularQs.push({
+              id: 'tbl_equip_' + group.id,
+              text: equipRows.map(q => q.text).join(', '),
+              type: 'item-table',
+              columns: [
+                { id: 'ec1', label: 'Description',  type: 'text',   options: '' },
+                { id: 'ec2', label: 'Manufacturer', type: 'text',   options: '' },
+                { id: 'ec3', label: 'Model #',      type: 'text',   options: '' },
+                { id: 'ec4', label: 'Serial #',     type: 'text',   options: '' },
+                { id: 'ec5', label: 'Asset #',      type: 'text',   options: '' },
+                { id: 'ec6', label: 'Hours',        type: 'number', options: '' },
+              ],
+            });
+          }
+
+          return {
+            id: group.id || ('g_' + sid()),
+            name: group.name,
+            questions: regularQs,
+          };
+        })
         .filter(g => g.questions.length > 0),
     }))
     .filter(s => s.groups.length > 0);

@@ -303,7 +303,7 @@ function InProgressIcon() {
   );
 }
 
-function PocRow({ poc, onUpdate }) {
+function PocRow({ poc, onUpdate, onUpdateStatus }) {
   const [showDetail, setShowDetail] = useState(false);
   const [showUpdateStatus, setShowUpdateStatus] = useState(false);
   const isOverdue = poc.status === 'incomplete' && poc.dueDate && new Date(poc.dueDate) < new Date();
@@ -361,11 +361,26 @@ function PocRow({ poc, onUpdate }) {
       {showUpdateStatus && (
         <UpdateStatusModal
           poc={poc}
-          onSave={onUpdate}
+          onSave={onUpdateStatus}
           onClose={() => setShowUpdateStatus(false)}
         />
       )}
     </>
+  );
+}
+
+function EventRow({ event }) {
+  const ts = new Date(event.timestamp);
+  const dateStr = ts.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+  const timeStr = ts.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+  const noteText = `${event.pocText}: ${event.previousStatus} → ${event.newStatus}${event.note ? `. ${event.note}` : ''}`;
+  return (
+    <div className="grid grid-cols-[160px_140px_140px_1fr] px-3 py-2.5 border-b border-gray-50 last:border-0 items-start hover:bg-gray-50 transition-colors">
+      <span className="text-gray-500">{dateStr} <span className="text-gray-400">{timeStr}</span></span>
+      <span className="text-gray-700">{event.user}</span>
+      <span className="text-gray-700">{event.type}</span>
+      <span className="text-gray-600 leading-relaxed">{noteText}</span>
+    </div>
   );
 }
 
@@ -378,6 +393,12 @@ function AuditRow({ audit, onOpen }) {
   function handleUpdatePoc(updatedPoc) {
     const pocItems = audit.pocItems.map(p => p.id === updatedPoc.id ? updatedPoc : p);
     updateAudit(audit.id, { pocItems });
+  }
+
+  function handleUpdateStatus(updatedPoc, event) {
+    const pocItems = audit.pocItems.map(p => p.id === updatedPoc.id ? updatedPoc : p);
+    const eventHistory = [...(audit.eventHistory || []), { ...event, user: event.user ?? audit.auditor }];
+    updateAudit(audit.id, { pocItems, eventHistory });
   }
 
   return (
@@ -430,7 +451,24 @@ function AuditRow({ audit, onOpen }) {
           {hasPoc && (
             <>
               <div className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Plan of Corrections</div>
-              {audit.pocItems.map(poc => <PocRow key={poc.id} poc={poc} onUpdate={handleUpdatePoc} />)}
+              {audit.pocItems.map(poc => <PocRow key={poc.id} poc={poc} onUpdate={handleUpdatePoc} onUpdateStatus={handleUpdateStatus} />)}
+            </>
+          )}
+
+          {(audit.eventHistory?.length > 0) && (
+            <>
+              <div className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2 mt-4">All Event History</div>
+              <div className="rounded-lg border border-gray-100 overflow-hidden text-xs">
+                <div className="grid grid-cols-[160px_140px_140px_1fr] bg-gray-50 border-b border-gray-100 px-3 py-2 text-gray-400 font-medium uppercase tracking-wide">
+                  <span>Timestamp</span>
+                  <span>User</span>
+                  <span>Type</span>
+                  <span>Note</span>
+                </div>
+                {[...audit.eventHistory].reverse().map(ev => (
+                  <EventRow key={ev.id} event={ev} />
+                ))}
+              </div>
             </>
           )}
         </div>

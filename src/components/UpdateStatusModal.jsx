@@ -23,13 +23,26 @@ export default function UpdateStatusModal({ poc, onSave, onClose }) {
   const [photos, setPhotos] = useState([]);
 
   function handleSave() {
-    onSave({
+    const updatedPoc = {
       ...poc,
       status,
       statusChangedAt: changedAt,
       statusNote: note,
       photos: [...(poc.photos || []), ...photos],
-    });
+    };
+    const event = {
+      id: 'e' + Date.now(),
+      timestamp: new Date().toISOString(),
+      changedAt,
+      user: null, // resolved by AuditRow using audit.auditor
+      type: 'Status Update',
+      pocId: poc.id,
+      pocText: poc.text,
+      previousStatus: poc.status,
+      newStatus: status,
+      note,
+    };
+    onSave(updatedPoc, event);
     onClose();
   }
 

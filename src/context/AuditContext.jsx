@@ -17,6 +17,7 @@ export function AuditProvider({ children }) {
       totalSections: 7,
       answers: {},
       pocItems: [],
+      eventHistory: [],
     },
     {
       id: 'a2',
@@ -31,6 +32,7 @@ export function AuditProvider({ children }) {
       totalSections: 5,
       answers: {},
       pocItems: [],
+      eventHistory: [],
     },
     {
       id: 'a3',
@@ -45,10 +47,11 @@ export function AuditProvider({ children }) {
       totalSections: 7,
       answers: {},
       pocItems: [
-        { id: 'p1', section: 'Safety Audit / Fire Safety', text: 'Fire extinguishers are present and visible.', assignee: 'Brian Burke', dueDate: '2026-07-02', status: 'incomplete', emergency: false, plan: '' },
-        { id: 'p2', section: 'Safety Audit / Fire Safety', text: 'First aid kit supplies are present and visible.', assignee: 'Brian Burke', dueDate: '2026-07-15', status: 'incomplete', emergency: false, plan: '' },
-        { id: 'p3', section: 'Safety Audit / Fire Safety', text: 'Exit signs are posted clearly in facility.', assignee: 'Brian Burke', dueDate: '2026-07-15', status: 'complete', emergency: false, plan: '' },
+        { id: 'p1', section: 'Safety Audit / Fire Safety', text: 'Fire extinguishers are present and visible.', assignee: 'Brian Burke', dueDate: '2026-07-02', status: 'incomplete', emergency: false, plan: '', photos: [] },
+        { id: 'p2', section: 'Safety Audit / Fire Safety', text: 'First aid kit supplies are present and visible.', assignee: 'Brian Burke', dueDate: '2026-07-15', status: 'incomplete', emergency: false, plan: '', photos: [] },
+        { id: 'p3', section: 'Safety Audit / Fire Safety', text: 'Exit signs are posted clearly in facility.', assignee: 'Brian Burke', dueDate: '2026-07-15', status: 'complete', emergency: false, plan: '', photos: [] },
       ],
+      eventHistory: [],
     },
     {
       id: 'a4',
@@ -63,6 +66,7 @@ export function AuditProvider({ children }) {
       totalSections: 5,
       answers: {},
       pocItems: [],
+      eventHistory: [],
     },
   ]);
 
@@ -82,6 +86,7 @@ export function AuditProvider({ children }) {
       totalSections: 7,
       answers: {},
       pocItems: [],
+      eventHistory: [],
     };
     setAudits(prev => [newAudit, ...prev]);
     return newAudit;
@@ -115,6 +120,7 @@ export function AuditProvider({ children }) {
       totalSections: 7,
       answers: {},
       pocItems,
+      eventHistory: [],
     };
     setAudits(prev => [newAudit, ...prev]);
     return newAudit;

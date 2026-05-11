@@ -3,6 +3,7 @@ import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import Sidebar from '../components/Sidebar';
 import { useAudit } from '../context/AuditContext';
 import { TEAM_MEMBERS } from '../data/biomedAudit';
+import PhotoUpload from '../components/PhotoUpload';
 
 export default function PocFlow() {
   const { id } = useParams();
@@ -20,6 +21,7 @@ export default function PocFlow() {
       section: item.section,
       text: item.text,
       comment: item.comment || '',
+      photos: item.photos || [],
       plan: '',
       assignee: '',
       dueDate: '',
@@ -119,6 +121,13 @@ export default function PocFlow() {
                     <span className="text-xs text-gray-500 italic">{item.comment}</span>
                   </div>
                 )}
+                <div className="mt-3 pt-3 border-t border-gray-200">
+                  <div className="text-xs text-gray-500 mb-2">Photos</div>
+                  <PhotoUpload
+                    photos={item.photos || []}
+                    onChange={newPhotos => updateCurrent('photos', newPhotos)}
+                  />
+                </div>
               </div>
 
               {/* Plan of correction */}

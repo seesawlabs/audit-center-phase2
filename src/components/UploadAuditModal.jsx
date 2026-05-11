@@ -2,6 +2,7 @@ import { useState } from 'react';
 import * as XLSX from 'xlsx';
 import { useAudit } from '../context/AuditContext';
 import { FACILITIES, TEAM_MEMBERS } from '../data/biomedAudit';
+import PhotoUpload from './PhotoUpload';
 
 const NO_RE = /^(no|not met|n|failed|unmet|f)$/i;
 const SKIP_RE = /^(yes|y|met|pass|ok|n\/a|na|s|satisfactory|compliant|complete)$/i;
@@ -13,7 +14,7 @@ function makeId() {
 }
 
 function emptyItem() {
-  return { id: makeId(), text: '', section: '', plan: '', assignee: '', dueDate: '', status: 'incomplete', emergency: false, fromFile: false };
+  return { id: makeId(), text: '', section: '', plan: '', assignee: '', dueDate: '', status: 'incomplete', emergency: false, fromFile: false, photos: [] };
 }
 
 function parseExcel(file) {
@@ -158,6 +159,14 @@ function PocItemForm({ item, index, onChange, onRemove }) {
         />
         <span className="text-sm text-gray-500">Mark as emergency</span>
       </label>
+
+      <div>
+        <label className="block text-xs text-gray-500 mb-1.5">Photos</label>
+        <PhotoUpload
+          photos={item.photos || []}
+          onChange={newPhotos => onChange('photos', newPhotos)}
+        />
+      </div>
 
       <div className="pt-1">
         <button

@@ -4,6 +4,7 @@ import Sidebar from '../components/Sidebar';
 import { useAudit } from '../context/AuditContext';
 import UploadAuditModal from '../components/UploadAuditModal';
 import PocDetailModal from '../components/PocDetailModal';
+import UpdateStatusModal from '../components/UpdateStatusModal';
 
 async function downloadBiomedTemplate() {
   const { default: ExcelJS } = await import('exceljs');
@@ -304,6 +305,7 @@ function InProgressIcon() {
 
 function PocRow({ poc, onUpdate }) {
   const [showDetail, setShowDetail] = useState(false);
+  const [showUpdateStatus, setShowUpdateStatus] = useState(false);
   const isOverdue = poc.status === 'incomplete' && poc.dueDate && new Date(poc.dueDate) < new Date();
   const statusColors = {
     complete: 'text-green-800 bg-green-100',
@@ -341,7 +343,12 @@ function PocRow({ poc, onUpdate }) {
           >
             Plan Details
           </button>
-          <button className="px-3 py-1 border border-gray-200 rounded text-xs text-gray-600 hover:bg-gray-100 whitespace-nowrap">Update Status</button>
+          <button
+            onClick={() => setShowUpdateStatus(true)}
+            className="px-3 py-1 border border-gray-200 rounded text-xs text-gray-600 hover:bg-gray-100 whitespace-nowrap"
+          >
+            Update Status
+          </button>
         </div>
       </div>
       {showDetail && (
@@ -349,6 +356,13 @@ function PocRow({ poc, onUpdate }) {
           poc={poc}
           onSave={onUpdate}
           onClose={() => setShowDetail(false)}
+        />
+      )}
+      {showUpdateStatus && (
+        <UpdateStatusModal
+          poc={poc}
+          onSave={onUpdate}
+          onClose={() => setShowUpdateStatus(false)}
         />
       )}
     </>

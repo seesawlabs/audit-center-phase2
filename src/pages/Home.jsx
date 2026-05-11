@@ -5,6 +5,7 @@ import { useAudit } from '../context/AuditContext';
 import UploadAuditModal from '../components/UploadAuditModal';
 import PocDetailModal from '../components/PocDetailModal';
 import UpdateStatusModal from '../components/UpdateStatusModal';
+import { BIOMED_SECTIONS } from '../data/biomedAudit';
 
 async function downloadBiomedTemplate() {
   const { default: ExcelJS } = await import('exceljs');
@@ -638,6 +639,7 @@ export default function Home() {
           onPrintBlank={() => { setShowBiomedModal(false); navigate('/audit/blank/print'); }}
           onPaperOcr={() => { setShowBiomedModal(false); navigate('/audit/new', { state: { openOcr: true } }); }}
           onDownloadTemplate={downloadBiomedTemplate}
+          onEditAudit={() => { setShowBiomedModal(false); navigate('/builder', { state: { editName: 'BioMed Audit', editDescription: 'Rendevor Dialysis — Annual Technical Audit', editSections: BIOMED_SECTIONS } }); }}
         />
       )}
 
@@ -802,7 +804,7 @@ function CustomAuditForkModal({ template, audits, onClose, onContinue, onStartNe
   );
 }
 
-function BiomedForkModal({ audits, onClose, onContinue, onStartNew, onUpload, onPrintBlank, onPaperOcr, onDownloadTemplate }) {
+function BiomedForkModal({ audits, onClose, onContinue, onStartNew, onUpload, onPrintBlank, onPaperOcr, onDownloadTemplate, onEditAudit }) {
   const [files, setFiles] = useState([]);
   const [isDragging, setIsDragging] = useState(false);
   const fileRef = useRef();
@@ -932,10 +934,16 @@ function BiomedForkModal({ audits, onClose, onContinue, onStartNew, onUpload, on
           </div>
         </div>
 
-        <div className="px-5 py-3 border-t border-gray-100 flex justify-end">
+        <div className="px-5 py-3 border-t border-gray-100 flex items-center justify-between">
+          <button
+            onClick={onEditAudit}
+            className="flex items-center gap-1.5 px-3 py-1.5 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50"
+          >
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+            Edit Audit
+          </button>
           <button onClick={onClose} className="px-3 py-1.5 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50">Cancel</button>
         </div>
-      </div>
     </div>
   );
 }

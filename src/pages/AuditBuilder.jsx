@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import Sidebar from '../components/Sidebar';
 import { useAudit } from '../context/AuditContext';
 
@@ -11,13 +11,49 @@ const makeColumn = () => ({ id: 'c_' + uid(), label: '', type: 'text', options: 
 
 const Q_TYPE_LABELS = { yn: 'Yes / No', text: 'Text', number: 'Number', 'item-table': 'Item Table' };
 const COL_TYPE_LABELS = { text: 'Text', number: 'Number', yn: 'Yes / No', dropdown: 'Dropdown' };
+const BUILDER_TYPES = new Set(['yn', 'text', 'number', 'item-table']);
+
+function toBuilderSections(rawSections) {
+  return rawSections
+    .map(section => ({
+      id: section.id || ('s_' + Math.random().toString(36).slice(2, 9)),
+      name: section.name,
+      groups: section.groups
+        .map(group => ({
+          id: group.id || ('g_' + Math.random().toString(36).slice(2, 9)),
+          name: group.name,
+          questions: group.questions
+            .filter(q => BUILDER_TYPES.has(q.type) || q.type === 'calculated')
+            .map(q => ({
+              id: q.id || ('q_' + Math.random().toString(36).slice(2, 9)),
+              text: q.text,
+              type: q.type === 'calculated' ? 'number' : q.type,
+              columns: (q.columns || []).map(c => ({
+                id: c.id || ('c_' + Math.random().toString(36).slice(2, 9)),
+                label: c.name || c.label || '',
+                type: c.type || 'text',
+                options: c.options || '',
+              })),
+            })),
+        }))
+        .filter(g => g.questions.length > 0),
+    }))
+    .filter(s => s.groups.length > 0);
+}
 
 export default function AuditBuilder() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { createTemplate } = useAudit();
-  const [name, setName] = useState('');
-  const [description, setDescription] = useState('');
-  const [sections, setSections] = useState([makeSection()]);
+
+  const editState = location.state;
+  const initialSections = editState?.editSections
+    ? toBuilderSections(editState.editSections)
+    : [makeSection()];
+
+  const [name, setName] = useState(editState?.editName || '');
+  const [description, setDescription] = useState(editState?.editDescription || '');
+  const [sections, setSections] = useState(initialSections);
 
   const hasQuestions = sections.some(s => s.groups.some(g => g.questions.length > 0));
   const canSave = name.trim() && hasQuestions;
@@ -107,7 +143,7 @@ export default function AuditBuilder() {
             Audit Center › Audit Builder
           </div>
           <div className="flex items-center justify-between pb-3">
-            <div className="text-lg font-medium text-gray-900">Build New Audit</div>
+            <div className="text-lg font-medium text-gray-900">{editState?.editSections ? 'Edit Audit' : 'Build New Audit'}</div>
             <div className="flex gap-2">
               <button onClick={() => navigate('/')} className="px-3 py-1.5 border border-gray-200 rounded-lg text-xs font-medium text-gray-600 hover:bg-gray-50">
                 Cancel

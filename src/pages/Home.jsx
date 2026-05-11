@@ -596,7 +596,8 @@ export default function Home() {
                   <button className="px-4 py-2 border border-gray-200 text-sm rounded-lg text-gray-600 hover:bg-white font-medium">
                     Clinical Audit
                   </button>
-                  <button className="px-4 py-2 border border-gray-200 text-sm rounded-lg text-gray-600 hover:bg-white font-medium">
+                  <button className="px-4 py-2 border border-dashed border-green-mid text-sm rounded-lg text-green-mid hover:bg-green-50 font-medium flex items-center gap-1.5">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
                     Upload Custom Audit
                   </button>
                   {auditTemplates.map(tpl => (

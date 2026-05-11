@@ -944,6 +944,7 @@ function BiomedForkModal({ audits, onClose, onContinue, onStartNew, onUpload, on
           </button>
           <button onClick={onClose} className="px-3 py-1.5 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50">Cancel</button>
         </div>
+      </div>
     </div>
   );
 }

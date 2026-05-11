@@ -7,7 +7,15 @@ import OcrUploadModal from '../components/OcrUploadModal';
 
 function groupIsComplete(group, answers) {
   return group.questions.every(q => {
-    if (q.type === 'calculated' || q.type === 'machine-row' || q.type === 'equipment-row' || q.type === 'equipment-extra' || q.type === 'machine-extra') return true;
+    if (q.type === 'calculated' || q.type === 'equipment-extra' || q.type === 'machine-extra') return true;
+    if (q.type === 'equipment-row') {
+      const a = answers[q.id];
+      return a && a.manufacturer && a.serial;
+    }
+    if (q.type === 'machine-row') {
+      const a = answers[q.id];
+      return a && a.serial && a.machType;
+    }
     return answers[q.id] !== undefined && answers[q.id] !== '';
   });
 }

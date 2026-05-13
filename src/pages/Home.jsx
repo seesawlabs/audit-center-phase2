@@ -639,7 +639,7 @@ export default function Home() {
           onPrintBlank={() => { setShowBiomedModal(false); navigate('/audit/blank/print'); }}
           onPaperOcr={() => { setShowBiomedModal(false); navigate('/audit/new', { state: { openOcr: true } }); }}
           onDownloadTemplate={downloadBiomedTemplate}
-          onEditAudit={() => { setShowBiomedModal(false); navigate('/builder', { state: { editName: 'BioMed Audit', editDescription: 'Rendevor Dialysis — Annual Technical Audit', editSections: BIOMED_SECTIONS } }); }}
+          onEditAudit={() => { setShowBiomedModal(false); navigate('/builder', { state: { editName: 'BioMed Audit', editDescription: 'Rendevor Dialysis — Annual Technical Audit', editSections: JSON.parse(JSON.stringify(BIOMED_SECTIONS)) } }); }}
         />
       )}
 

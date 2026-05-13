@@ -118,8 +118,6 @@ export default function AuditBuilder() {
   const hasQuestions = sections.some(s => s.groups.some(g => g.questions.length > 0));
   const canSave = name.trim() && hasQuestions;
 
-  const hasCalculated = sections.some(s => s.groups.some(g => g.questions.some(q => q.type === 'calculated')));
-
   // All numeric questions with a varName — used as formula variable chips
   const allVarNames = sections.flatMap(s =>
     s.groups.flatMap(g =>
@@ -299,7 +297,9 @@ export default function AuditBuilder() {
 
                 {/* Groups */}
                 <div className="p-4 space-y-3">
-                  {section.groups.map((group, gIdx) => (
+                  {section.groups.map((group, gIdx) => {
+                    const groupHasCalculated = group.questions.some(q => q.type === 'calculated');
+                    return (
                     <div key={group.id} className="border border-gray-100 rounded-xl overflow-hidden">
 
                       {/* Group header */}
@@ -347,8 +347,8 @@ export default function AuditBuilder() {
                                 </button>
                               </div>
 
-                              {/* Variable name for numeric questions — only shown when a calculated question exists */}
-                              {q.type === 'number' && hasCalculated && (
+                              {/* Variable name shown only when this group contains a calculated question */}
+                              {q.type === 'number' && groupHasCalculated && (
                                 <div className="ml-7 flex items-center gap-1.5">
                                   <span className="text-xs text-gray-400 flex-shrink-0">var:</span>
                                   <input
@@ -477,7 +477,8 @@ export default function AuditBuilder() {
                         </button>
                       </div>
                     </div>
-                  ))}
+                  );
+                  })}
 
                   {/* Add group */}
                   <button

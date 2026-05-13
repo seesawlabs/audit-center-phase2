@@ -1,17 +1,28 @@
 import { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { parse as mathParse } from 'mathjs';
 import Sidebar from '../components/Sidebar';
 import { useAudit } from '../context/AuditContext';
 
 const uid = () => Math.random().toString(36).slice(2, 9);
 const makeSection = () => ({ id: 's_' + uid(), name: '', groups: [makeGroup()] });
 const makeGroup = () => ({ id: 'g_' + uid(), name: '', questions: [] });
-const makeQuestion = () => ({ id: 'q_' + uid(), text: '', type: 'yn', columns: [] });
+const makeQuestion = () => ({ id: 'q_' + uid(), text: '', type: 'yn', columns: [], varName: '', formula: '', unit: '' });
 const makeColumn = () => ({ id: 'c_' + uid(), label: '', type: 'text', options: '' });
 
-const Q_TYPE_LABELS = { yn: 'Yes / No', text: 'Text', number: 'Number', 'item-table': 'Item Table' };
+const Q_TYPE_LABELS = { yn: 'Yes / No', text: 'Text', number: 'Number', 'item-table': 'Item Table', calculated: 'Calculated' };
 const COL_TYPE_LABELS = { text: 'Text', number: 'Number', yn: 'Yes / No', dropdown: 'Dropdown' };
-const BUILDER_TYPES = new Set(['yn', 'text', 'number', 'item-table']);
+const BUILDER_TYPES = new Set(['yn', 'text', 'number', 'item-table', 'calculated']);
+
+function toVarName(text) {
+  return text.toLowerCase().replace(/[^a-z0-9\s]/g, '').trim().replace(/\s+/g, '_').replace(/_+$/, '').slice(0, 40);
+}
+
+function validateFormula(formula) {
+  if (!formula || !formula.trim()) return null;
+  try { mathParse(formula); return { valid: true }; }
+  catch (e) { return { valid: false, error: e.message.split('\n')[0] }; }
+}
 
 function toBuilderSections(rawSections) {
   const sid = () => Math.random().toString(36).slice(2, 9);
@@ -25,11 +36,14 @@ function toBuilderSections(rawSections) {
           const machineRows = group.questions.filter(q => q.type === 'machine-row');
           const equipRows   = group.questions.filter(q => q.type === 'equipment-row');
           const regularQs   = group.questions
-            .filter(q => BUILDER_TYPES.has(q.type) || q.type === 'calculated')
+            .filter(q => BUILDER_TYPES.has(q.type))
             .map(q => ({
               id: q.id || ('q_' + sid()),
               text: q.text,
-              type: q.type === 'calculated' ? 'number' : q.type,
+              type: q.type,
+              varName: q.varName || '',
+              formula: typeof q.formula === 'string' ? q.formula : '',
+              unit: q.unit || '',
               columns: (q.columns || []).map(c => ({
                 id: c.id || ('c_' + sid()),
                 label: c.name || c.label || '',
@@ -43,6 +57,7 @@ function toBuilderSections(rawSections) {
               id: 'tbl_mach_' + group.id,
               text: machineRows.map(q => q.text).join(', '),
               type: 'item-table',
+              varName: '', formula: '', unit: '',
               columns: [
                 { id: 'mc1', label: 'Machine',       type: 'text',   options: '' },
                 { id: 'mc2', label: 'Serial #',      type: 'text',   options: '' },
@@ -63,6 +78,7 @@ function toBuilderSections(rawSections) {
               id: 'tbl_equip_' + group.id,
               text: equipRows.map(q => q.text).join(', '),
               type: 'item-table',
+              varName: '', formula: '', unit: '',
               columns: [
                 { id: 'ec1', label: 'Description',  type: 'text',   options: '' },
                 { id: 'ec2', label: 'Manufacturer', type: 'text',   options: '' },
@@ -102,6 +118,15 @@ export default function AuditBuilder() {
   const hasQuestions = sections.some(s => s.groups.some(g => g.questions.length > 0));
   const canSave = name.trim() && hasQuestions;
 
+  // All numeric questions with a varName — used as formula variable chips
+  const allVarNames = sections.flatMap(s =>
+    s.groups.flatMap(g =>
+      g.questions
+        .filter(q => q.varName && q.type === 'number')
+        .map(q => ({ varName: q.varName, text: q.text }))
+    )
+  );
+
   // ── section helpers ──────────────────────────────────────────────────────────
   function addSection() {
     setSections(prev => [...prev, makeSection()]);
@@ -140,9 +165,30 @@ export default function AuditBuilder() {
   function updateQuestion(sId, gId, qId, field, val) {
     setSections(prev => prev.map(s => s.id === sId
       ? { ...s, groups: s.groups.map(g => g.id === gId
-          ? { ...g, questions: g.questions.map(q => q.id === qId ? { ...q, [field]: val } : q) }
+          ? { ...g, questions: g.questions.map(q => {
+              if (q.id !== qId) return q;
+              const updates = { [field]: val };
+              // Auto-generate varName from question text when the field is empty
+              if (field === 'text' && !q.varName && q.type === 'number') {
+                updates.varName = toVarName(val);
+              }
+              // Clear varName when type changes away from number
+              if (field === 'type' && val !== 'number') {
+                updates.varName = '';
+              }
+              // Auto-set varName when type changes TO number and text exists
+              if (field === 'type' && val === 'number' && q.text && !q.varName) {
+                updates.varName = toVarName(q.text);
+              }
+              return { ...q, ...updates };
+            }) }
           : g) }
       : s));
+  }
+
+  function appendToFormula(sId, gId, qId, currentFormula, varName) {
+    const separator = currentFormula && !currentFormula.endsWith(' ') ? ' ' : '';
+    updateQuestion(sId, gId, qId, 'formula', currentFormula + separator + varName);
   }
 
   // ── column helpers ───────────────────────────────────────────────────────────
@@ -272,77 +318,152 @@ export default function AuditBuilder() {
 
                       {/* Questions */}
                       <div className="px-4 py-3 space-y-2">
-                        {group.questions.map((q, qIdx) => (
-                          <div key={q.id}>
-                            {/* Question row */}
-                            <div className="flex items-center gap-2">
-                              <span className="text-xs text-gray-300 w-5 text-right flex-shrink-0">{qIdx + 1}.</span>
-                              <input
-                                value={q.text}
-                                onChange={e => updateQuestion(section.id, group.id, q.id, 'text', e.target.value)}
-                                placeholder="Question text..."
-                                className="flex-1 px-3 py-1.5 border border-gray-200 rounded-lg text-sm text-gray-800 focus:outline-none focus:border-green-mid"
-                              />
-                              <select
-                                value={q.type}
-                                onChange={e => updateQuestion(section.id, group.id, q.id, 'type', e.target.value)}
-                                className="w-36 px-2.5 py-1.5 border border-gray-200 rounded-lg text-xs text-gray-700 bg-white focus:outline-none focus:border-green-mid flex-shrink-0"
-                              >
-                                {Object.entries(Q_TYPE_LABELS).map(([val, label]) => (
-                                  <option key={val} value={val}>{label}</option>
-                                ))}
-                              </select>
-                              <button onClick={() => removeQuestion(section.id, group.id, q.id)} className="text-gray-300 hover:text-red-400 transition-colors flex-shrink-0">
-                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-                              </button>
-                            </div>
-
-                            {/* Column editor for item-table */}
-                            {q.type === 'item-table' && (
-                              <div className="ml-7 mt-2 pl-3 border-l-2 border-green-mid/20 space-y-1.5">
-                                <div className="text-xs text-gray-400 mb-1.5">Table columns</div>
-                                {(q.columns || []).map((col, cIdx) => (
-                                  <div key={col.id} className="flex items-center gap-2">
-                                    <span className="text-xs text-gray-300 w-4 text-right flex-shrink-0">{cIdx + 1}.</span>
-                                    <input
-                                      value={col.label}
-                                      onChange={e => updateColumn(section.id, group.id, q.id, col.id, 'label', e.target.value)}
-                                      placeholder="Column label..."
-                                      className="flex-1 px-2.5 py-1 border border-gray-200 rounded-lg text-xs text-gray-800 focus:outline-none focus:border-green-mid"
-                                    />
-                                    <select
-                                      value={col.type}
-                                      onChange={e => updateColumn(section.id, group.id, q.id, col.id, 'type', e.target.value)}
-                                      className="w-28 px-2 py-1 border border-gray-200 rounded-lg text-xs text-gray-700 bg-white focus:outline-none focus:border-green-mid flex-shrink-0"
-                                    >
-                                      {Object.entries(COL_TYPE_LABELS).map(([val, label]) => (
-                                        <option key={val} value={val}>{label}</option>
-                                      ))}
-                                    </select>
-                                    {col.type === 'dropdown' && (
-                                      <input
-                                        value={col.options}
-                                        onChange={e => updateColumn(section.id, group.id, q.id, col.id, 'options', e.target.value)}
-                                        placeholder="Option A, Option B..."
-                                        className="flex-1 px-2.5 py-1 border border-gray-200 rounded-lg text-xs text-gray-800 focus:outline-none focus:border-green-mid"
-                                      />
-                                    )}
-                                    <button onClick={() => removeColumn(section.id, group.id, q.id, col.id)} className="text-gray-300 hover:text-red-400 transition-colors flex-shrink-0">
-                                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-                                    </button>
-                                  </div>
-                                ))}
-                                <button
-                                  onClick={() => addColumn(section.id, group.id, q.id)}
-                                  className="flex items-center gap-1 text-xs text-green-mid hover:text-green-700 transition-colors mt-1"
+                        {group.questions.map((q, qIdx) => {
+                          const formulaStatus = q.type === 'calculated' ? validateFormula(q.formula) : null;
+                          return (
+                            <div key={q.id} className="space-y-1.5">
+                              {/* Question row */}
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs text-gray-300 w-5 text-right flex-shrink-0">{qIdx + 1}.</span>
+                                <input
+                                  value={q.text}
+                                  onChange={e => updateQuestion(section.id, group.id, q.id, 'text', e.target.value)}
+                                  placeholder="Question text..."
+                                  className="flex-1 px-3 py-1.5 border border-gray-200 rounded-lg text-sm text-gray-800 focus:outline-none focus:border-green-mid"
+                                />
+                                <select
+                                  value={q.type}
+                                  onChange={e => updateQuestion(section.id, group.id, q.id, 'type', e.target.value)}
+                                  className="w-36 px-2.5 py-1.5 border border-gray-200 rounded-lg text-xs text-gray-700 bg-white focus:outline-none focus:border-green-mid flex-shrink-0"
                                 >
-                                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                                  Add column
+                                  {Object.entries(Q_TYPE_LABELS).map(([val, label]) => (
+                                    <option key={val} value={val}>{label}</option>
+                                  ))}
+                                </select>
+                                <button onClick={() => removeQuestion(section.id, group.id, q.id)} className="text-gray-300 hover:text-red-400 transition-colors flex-shrink-0">
+                                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
                                 </button>
                               </div>
-                            )}
-                          </div>
-                        ))}
+
+                              {/* Variable name for numeric questions */}
+                              {q.type === 'number' && (
+                                <div className="ml-7 flex items-center gap-1.5">
+                                  <span className="text-xs text-gray-400 flex-shrink-0">var:</span>
+                                  <input
+                                    value={q.varName || ''}
+                                    onChange={e => updateQuestion(section.id, group.id, q.id, 'varName', e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ''))}
+                                    placeholder="variable_name"
+                                    className="w-52 px-2 py-0.5 border border-gray-200 rounded font-mono text-xs text-gray-600 focus:outline-none focus:border-green-mid"
+                                  />
+                                  <span className="text-xs text-gray-300">use in calculated formulas</span>
+                                </div>
+                              )}
+
+                              {/* Formula editor for calculated questions */}
+                              {q.type === 'calculated' && (
+                                <div className="ml-7 pl-3 border-l-2 border-purple-200 space-y-2">
+                                  <div className="flex gap-2 items-start">
+                                    <div className="flex-1">
+                                      <label className="text-xs text-gray-400 mb-1 block">Formula</label>
+                                      <div className="flex items-center gap-1.5">
+                                        <input
+                                          value={q.formula || ''}
+                                          onChange={e => updateQuestion(section.id, group.id, q.id, 'formula', e.target.value)}
+                                          placeholder="e.g. (primary_carbon + secondary_carbon) / ro_flow * 7.48"
+                                          className="flex-1 px-2.5 py-1.5 border border-gray-200 rounded-lg text-xs font-mono text-gray-800 focus:outline-none focus:border-green-mid"
+                                        />
+                                        {formulaStatus && (
+                                          formulaStatus.valid
+                                            ? <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#4ade80" strokeWidth="2.5" className="flex-shrink-0"><polyline points="20 6 9 17 4 12"/></svg>
+                                            : <span title={formulaStatus.error} className="flex-shrink-0 cursor-help">
+                                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#f87171" strokeWidth="2.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                                              </span>
+                                        )}
+                                      </div>
+                                    </div>
+                                    <div className="w-24 flex-shrink-0">
+                                      <label className="text-xs text-gray-400 mb-1 block">Unit</label>
+                                      <input
+                                        value={q.unit || ''}
+                                        onChange={e => updateQuestion(section.id, group.id, q.id, 'unit', e.target.value)}
+                                        placeholder="min, %…"
+                                        className="w-full px-2.5 py-1.5 border border-gray-200 rounded-lg text-xs text-gray-800 focus:outline-none focus:border-green-mid"
+                                      />
+                                    </div>
+                                  </div>
+                                  {formulaStatus && !formulaStatus.valid && (
+                                    <div className="text-xs text-red-500">{formulaStatus.error}</div>
+                                  )}
+                                  {allVarNames.length > 0 && (
+                                    <div>
+                                      <div className="text-xs text-gray-400 mb-1">Insert variable:</div>
+                                      <div className="flex flex-wrap gap-1">
+                                        {allVarNames.map(v => (
+                                          <button
+                                            key={v.varName}
+                                            onClick={() => appendToFormula(section.id, group.id, q.id, q.formula || '', v.varName)}
+                                            title={v.text}
+                                            className="px-2 py-0.5 bg-gray-50 hover:bg-purple-50 hover:text-purple-700 border border-gray-200 hover:border-purple-300 rounded font-mono text-xs text-gray-600 transition-colors"
+                                          >
+                                            {v.varName}
+                                          </button>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  )}
+                                  <div className="text-xs text-gray-400">
+                                    Supports: <span className="font-mono">+ - * / ^ ( )</span> and functions like <span className="font-mono">round(x, 2)</span>, <span className="font-mono">min(a, b)</span>, <span className="font-mono">max(a, b)</span>, <span className="font-mono">sqrt(x)</span>, <span className="font-mono">abs(x)</span>
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* Column editor for item-table */}
+                              {q.type === 'item-table' && (
+                                <div className="ml-7 mt-2 pl-3 border-l-2 border-green-mid/20 space-y-1.5">
+                                  <div className="text-xs text-gray-400 mb-1.5">Table columns</div>
+                                  {(q.columns || []).map((col, cIdx) => (
+                                    <div key={col.id} className="flex items-center gap-2">
+                                      <span className="text-xs text-gray-300 w-4 text-right flex-shrink-0">{cIdx + 1}.</span>
+                                      <input
+                                        value={col.label}
+                                        onChange={e => updateColumn(section.id, group.id, q.id, col.id, 'label', e.target.value)}
+                                        placeholder="Column label..."
+                                        className="flex-1 px-2.5 py-1 border border-gray-200 rounded-lg text-xs text-gray-800 focus:outline-none focus:border-green-mid"
+                                      />
+                                      <select
+                                        value={col.type}
+                                        onChange={e => updateColumn(section.id, group.id, q.id, col.id, 'type', e.target.value)}
+                                        className="w-28 px-2 py-1 border border-gray-200 rounded-lg text-xs text-gray-700 bg-white focus:outline-none focus:border-green-mid flex-shrink-0"
+                                      >
+                                        {Object.entries(COL_TYPE_LABELS).map(([val, label]) => (
+                                          <option key={val} value={val}>{label}</option>
+                                        ))}
+                                      </select>
+                                      {col.type === 'dropdown' && (
+                                        <input
+                                          value={col.options}
+                                          onChange={e => updateColumn(section.id, group.id, q.id, col.id, 'options', e.target.value)}
+                                          placeholder="Option A, Option B..."
+                                          className="flex-1 px-2.5 py-1 border border-gray-200 rounded-lg text-xs text-gray-800 focus:outline-none focus:border-green-mid"
+                                        />
+                                      )}
+                                      <button onClick={() => removeColumn(section.id, group.id, q.id, col.id)} className="text-gray-300 hover:text-red-400 transition-colors flex-shrink-0">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                                      </button>
+                                    </div>
+                                  ))}
+                                  <button
+                                    onClick={() => addColumn(section.id, group.id, q.id)}
+                                    className="flex items-center gap-1 text-xs text-green-mid hover:text-green-700 transition-colors mt-1"
+                                  >
+                                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                                    Add column
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
 
                         {/* Add question */}
                         <button

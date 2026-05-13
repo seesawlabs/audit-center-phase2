@@ -71,19 +71,19 @@ export const BIOMED_SECTIONS = [
         id: 'g4',
         name: 'EBCT calculation',
         questions: [
-          { id: 'q13', text: 'Primary Carbon volume (CuFt).', type: 'number' },
-          { id: 'q14', text: 'Secondary Carbon volume (CuFt).', type: 'number' },
-          { id: 'q15', text: 'RO Product Flow (GPM).', type: 'number' },
-          { id: 'q16', text: 'EBCT (auto-calculated). Minimum 10 minutes required. Formula: (Primary + Secondary) × 7.48 ÷ RO Flow.', type: 'calculated', formula: (a) => { const p = parseFloat(a['q13'])||0; const s = parseFloat(a['q14'])||0; const f = parseFloat(a['q15'])||0; if (!f) return null; return ((p+s)/f*7.48).toFixed(2)+' min'; } },
+          { id: 'q13', text: 'Primary Carbon volume (CuFt).', type: 'number', varName: 'primary_carbon' },
+          { id: 'q14', text: 'Secondary Carbon volume (CuFt).', type: 'number', varName: 'secondary_carbon' },
+          { id: 'q15', text: 'RO Product Flow (GPM).', type: 'number', varName: 'ro_product_flow' },
+          { id: 'q16', text: 'EBCT (auto-calculated). Minimum 10 minutes required. Formula: (primary_carbon + secondary_carbon) / ro_product_flow * 7.48', type: 'calculated', formula: '(primary_carbon + secondary_carbon) / ro_product_flow * 7.48', unit: 'min' },
         ],
       },
       {
         id: 'g5',
         name: 'RO % rejection',
         questions: [
-          { id: 'q17', text: 'RO Feed TDS reading.', type: 'number' },
-          { id: 'q18', text: 'RO Product TDS reading.', type: 'number' },
-          { id: 'q19', text: '% Rejection (auto-calculated). Minimum 90% required. Formula: (Feed − Product) ÷ Feed × 100.', type: 'calculated', formula: (a) => { const feed = parseFloat(a['q17'])||0; const prod = parseFloat(a['q18'])||0; if (!feed) return null; return (((feed-prod)/feed)*100).toFixed(2)+'%'; } },
+          { id: 'q17', text: 'RO Feed TDS reading.', type: 'number', varName: 'ro_feed_tds' },
+          { id: 'q18', text: 'RO Product TDS reading.', type: 'number', varName: 'ro_product_tds' },
+          { id: 'q19', text: '% Rejection (auto-calculated). Minimum 90% required. Formula: (ro_feed_tds - ro_product_tds) / ro_feed_tds * 100', type: 'calculated', formula: '(ro_feed_tds - ro_product_tds) / ro_feed_tds * 100', unit: '%' },
         ],
       },
       {

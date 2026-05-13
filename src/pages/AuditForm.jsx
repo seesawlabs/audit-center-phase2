@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
+import { evaluate as mathEvaluate } from 'mathjs';
 import Sidebar from '../components/Sidebar';
 import { useAudit } from '../context/AuditContext';
 import { BIOMED_SECTIONS, MACH_TYPE_OPTIONS, EQUIP_OPTIONS } from '../data/biomedAudit';
@@ -61,7 +62,26 @@ export default function AuditForm() {
 
   function getCalcValue(q) {
     if (!q.formula) return null;
-    return q.formula(answers);
+    if (typeof q.formula === 'function') return q.formula(answers);
+    if (typeof q.formula !== 'string' || !q.formula.trim()) return null;
+    try {
+      const scope = {};
+      sections.forEach(s => s.groups.forEach(g => g.questions.forEach(qItem => {
+        if (qItem.varName && qItem.type === 'number') {
+          const raw = answers[qItem.id];
+          if (raw !== undefined && raw !== '') {
+            const num = parseFloat(raw);
+            if (!isNaN(num)) scope[qItem.varName] = num;
+          }
+        }
+      })));
+      const result = mathEvaluate(q.formula, scope);
+      if (typeof result !== 'number' || !isFinite(result)) return null;
+      const formatted = Number.isInteger(result) ? String(result) : parseFloat(result.toFixed(4)).toString();
+      return q.unit ? `${formatted} ${q.unit}` : formatted;
+    } catch {
+      return null;
+    }
   }
 
   function getFlaggedItems() {
